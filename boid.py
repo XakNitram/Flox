@@ -15,13 +15,15 @@ class Boid:
     ALIGN_RANGE = 70.
     SEPARATE_RANGE = 20.
 
-    __slots__ = "position", "velocity", "acceleration"
+    __slots__ = "name", "position", "velocity", "acceleration"
 
+    name: int
     position: Vec2
     velocity: Vec2
     acceleration: Vec2
 
-    def __init__(self, x: float, y: float):
+    def __init__(self, name: int, x: float, y: float):
+        self.name = name
         self.position = Vec2(x, y)
         self.velocity = Vec2.from_random(self.MAX_SPEED)
         self.acceleration = Vec2()
@@ -128,11 +130,11 @@ class Flock:
         self.distances = [([0.] * count) for _ in range(count)]
         self.drawables: List[WireframeTriangle] = []
 
-        for _ in range(count):
+        for name in range(count):
             angle = random() * tau
             x = 100. * cos(angle) + start.x
             y = 100. * sin(angle) + start.y
-            boid = Boid(x, y)
+            boid = Boid(name, x, y)
             self.data.append(boid)
 
             self.drawables.append(WireframeTriangle(
