@@ -15,3 +15,11 @@ The project also serves to hone my skills with data structures and layouts.
 1. Abstraction
 1. Data-oriented design (to a small degree)
 1. Quad-trees
+
+#### Install and Run:
+
+1. git clone https://github.com/XakNitram/Flox.git
+1. cd Flox/
+1. pipenv install
+1. pipenv shell
+1. python Flox.py
