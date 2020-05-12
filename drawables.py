@@ -4,6 +4,7 @@ from math import sin, cos, pi
 from pyglet.gl import *
 
 
+# TODO: Add a batch version or rewrite this class to use batched rendering.
 class WireframeTriangle:
     __slots__ = 'positions', '_vao', '_vbo', '_ebo', 'x', 'y', 'angle', 'radius'
 

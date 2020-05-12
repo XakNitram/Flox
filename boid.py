@@ -144,6 +144,8 @@ class Flock:
     def update(self, dt: float):
         for i in range(self.count):
             boid = self.data[i]
+
+            # TODO: Replace this distances array with a Quad-Tree data structure.
             for j in range(i + 1, self.count):
                 other = self.data[j]
 
@@ -191,6 +193,7 @@ class Flock:
             cohesion = boid.cohesion(aclign_to)
 
             # **** Separation ****
+            # FIXME: This separation code is causing the boids to jitter. Why?
             sr = boid.SEPARATE_RANGE
             separate_from = []
             for j, other in enumerate(self.data):
