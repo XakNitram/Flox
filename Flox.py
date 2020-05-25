@@ -1,7 +1,7 @@
 import pyglet
 
 from boid import Flock
-from shader import get_default_shader
+from shader import get_default_shader, World
 from vectors import Vec2
 
 
@@ -16,7 +16,8 @@ class Simulation:
         self.fps = pyglet.window.FPSDisplay(self.window)
 
         self.shader = get_default_shader()
-        self.shader.set_world_matrix(width, height)
+        self.projection = World(self.shader)
+        self.projection.set(width, height)
 
         self.flock = Flock(50, Vec2(0., 0.), min(width, height) / 3)
 
@@ -38,5 +39,5 @@ class Simulation:
 
 
 if __name__ == '__main__':
-    sim = Simulation(800, 600)
+    sim = Simulation(960, 720)
     sim.run()

@@ -1,17 +1,13 @@
-from ctypes import create_string_buffer, pointer, POINTER, cast, byref
-
-from pyglet.gl import *
-
 # language=GLSL
 vertex_source = b'''
 #version 330 core
 
 layout(location = 0) in vec2 position;
 
-uniform mat4 u_World = mat4(1.0);
+uniform mat4 u_Projection = mat4(1.0);
 
 void main() {
-    gl_Position = u_World * vec4(position.x, position.y, 0.0, 1.0);
+    gl_Position = u_Projection * vec4(position.x, position.y, 0.0, 1.0);
 }
 '''
 
@@ -27,14 +23,64 @@ void main() {
 '''
 
 
-class ShaderProgram:
+import ctypes as c
+from dataclasses import dataclass
+from typing import Tuple, Dict, Iterator, ClassVar
+
+from pyglet.gl import *
+
+
+class Uniform:
+    name: ClassVar[bytes]
+
+    __slots__ = "program", "uniform"
+
+    def __init__(self, program: "Shader"):
+        self.program = program
+        self.uniform = self.program.get_uniform_location(self.name)
+
+
+class World(Uniform):
+    name: bytes = b'u_Projection'
+
+    def set(self, width: int, height: int):
+        if self.uniform:
+            self.program.set_uniform_matrix4fv(
+                self.uniform, (
+                    2 / width, 0.,         0., 0.,
+                    0.,        2 / height, 0., 0.,
+                    0.,        0.,         1., 0.,
+                    0.,        0.,         0., 1.,
+                )
+            )
+
+
+@dataclass
+class Location:
+    value: int
+
+    def __bool__(self):
+        return self.value != -1
+
+    def exists(self) -> bool:
+        return bool(self)
+
+    def __int__(self):
+        return self.value
+
+
+# noinspection PyMethodMayBeStatic
+class Shader:
+    location_map: Dict[bytes, Location]
     id: GLuint
 
     def __init__(self, vertex: bytes, fragment: bytes):
+        self.location_map = {}
+
         self.id = glCreateProgram()
 
-        vs = self.compile_shader(GL_VERTEX_SHADER, vertex)
-        fs = self.compile_shader(GL_FRAGMENT_SHADER, fragment)
+        vs: GLuint = self.compile_shader(GL_VERTEX_SHADER, vertex)
+        fs: GLuint = self.compile_shader(GL_FRAGMENT_SHADER, fragment)
 
         glAttachShader(self.id, vs)
         glAttachShader(self.id, fs)
@@ -46,15 +92,15 @@ class ShaderProgram:
         glDeleteShader(fs)
 
     @staticmethod
-    def compile_shader(mode: int, source: bytes) -> GLuint:
+    def compile_shader(mode: int, source: bytes):
         # Python necessity. Create a char* array out of the source.
-        buffer = create_string_buffer(source)
-        c_shader = cast(
-            pointer(pointer(buffer)),
-            POINTER(POINTER(GLchar))
+        buffer = c.create_string_buffer(source)
+        c_shader = c.cast(
+            c.pointer(c.pointer(buffer)),
+            c.POINTER(c.POINTER(GLchar))
         )
 
-        shader: GLuint = glCreateShader(mode)
+        shader: gl.GLuint = glCreateShader(mode)
         glShaderSource(
             shader,  # created shader (GLuint/u_long)
             1,  # number of shader sources attaching (GLsizei/int)
@@ -67,17 +113,17 @@ class ShaderProgram:
         # TODO: Error handling
         result = GLint(2)
         # i - integer; v - vector
-        glGetShaderiv(shader, GL_COMPILE_STATUS, byref(result))
+        glGetShaderiv(shader, GL_COMPILE_STATUS, c.byref(result))
         if result.value == GL_FALSE:
             message_length = GLint()
-            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, byref(message_length))
-            error_buffer = create_string_buffer(message_length.value)
+            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, c.byref(message_length))
+            error_buffer = c.create_string_buffer(message_length.value)
 
             glGetShaderInfoLog(
                 shader,
                 message_length,
-                byref(message_length),
-                cast(pointer(error_buffer), POINTER(GLchar))
+                c.byref(message_length),
+                c.cast(c.pointer(error_buffer), c.POINTER(GLchar))
                 # error_buffer
             )
 
@@ -95,34 +141,63 @@ class ShaderProgram:
 
         return shader
 
-    def set_world_matrix(self, width, height):
-        """This can be abstracted but for now it works."""
-        with self:
-            name_buffer = create_string_buffer(b'u_World')
-            location: int = glGetUniformLocation(
-                self.id, cast(pointer(name_buffer), POINTER(GLchar)),
+    def get_uniform_location(self, name: bytes) -> Location:
+        try:
+            location = self.location_map[name]
+        except KeyError:
+            name_buffer = c.create_string_buffer(name)
+            raw_location: int = glGetUniformLocation(
+                self.id, c.cast(c.pointer(name_buffer), c.POINTER(GLchar))
             )
 
-            if location == -1:
-                raise GLException(f"Failed to find uniform u_World.")
-            else:
-                data = (GLfloat * 16)(
-                    +2 / width, +0.,       0., 0.,
-                    +0.,        +2/height, 0., 0.,
-                    +0.,        +0.,       1., 0.,
-                    +0.,        +0.,       0., 1.
-                )
+            self.location_map[name] = location = Location(raw_location)
 
-                glUniformMatrix4fv(location, 1, GL_FALSE, data)
+        # assert uniform != -1, f"Unable to find uniform {name.decode('ascii')}"
 
-    def __enter__(self):
+        return location
+
+    def set_uniform_1i(self, location: Location, value: int):
+        with self:
+            glUniform1i(location, value)
+
+    def set_uniform_4f(self, location: Location, data: Iterator[float]):
+        with self:
+            glUniform4f(location, *data)
+
+    def set_uniform_matrix4fv(self, location: Location, data: Tuple[float, ...]):
+        with self:
+            c_data = (GLfloat * len(data))(*data)
+            glUniformMatrix4fv(location, 1, GL_FALSE, c_data)
+
+    def get_uniform_fv(self, location: Location, size: int) -> Tuple[float, ...]:
+        with self:
+            buffer = (GLfloat * size)()
+            glGetUniformfv(self.id, location, buffer)
+
+            return tuple(buffer)
+
+    def get_uniform_iv(self, location: Location, size: int) -> Tuple[int, ...]:
+        with self:
+            buffer = (GLint * size)()
+            glGetUniformiv(self.id, location, buffer)
+
+            return tuple(buffer)
+
+    def bind(self):
         glUseProgram(self.id)
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def unbind(self):
         glUseProgram(0)
 
+    def __enter__(self) -> GLuint:
+        self.bind()
+        return self.id
 
-_default_shader = ShaderProgram(vertex_source, fragment_source)
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.unbind()
+
+
+_default_shader = Shader(vertex_source, fragment_source)
 
 
 def get_default_shader():
