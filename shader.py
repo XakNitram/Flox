@@ -69,6 +69,9 @@ class Location:
         return self.value
 
 
+Mat4 = (GLfloat * 16)
+
+
 # noinspection PyMethodMayBeStatic
 class Shader:
     location_map: Dict[bytes, Location]
@@ -167,6 +170,10 @@ class Shader:
     def set_uniform_matrix4fv(self, location: Location, data: Tuple[float, ...]):
         with self:
             c_data = (GLfloat * len(data))(*data)
+            glUniformMatrix4fv(location, 1, GL_FALSE, c_data)
+
+    def set_uniform_matrix4fv_raw(self, location: Location, c_data: Mat4):
+        with self:
             glUniformMatrix4fv(location, 1, GL_FALSE, c_data)
 
     def get_uniform_fv(self, location: Location, size: int) -> Tuple[float, ...]:

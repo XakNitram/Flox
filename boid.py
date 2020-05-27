@@ -2,7 +2,7 @@ from math import cos, tau, sin
 from random import random
 from typing import List
 
-from drawables import WireframeTriangle
+from drawables import BoidRenderer
 from vectors import Vec2
 
 
@@ -128,7 +128,7 @@ class Flock:
         self.count = count
         self.data: List[Boid] = []
         self.distances = [([0.] * count) for _ in range(count)]
-        self.drawables: List[WireframeTriangle] = []
+        self.renderer = BoidRenderer()
 
         for name in range(count):
             angle = random() * tau
@@ -137,9 +137,7 @@ class Flock:
             boid = Boid(name, x, y)
             self.data.append(boid)
 
-            self.drawables.append(WireframeTriangle(
-                start.x, start.y, boid.heading, Boid.SIZE
-            ))
+            self.renderer.attach_model(start.x, start.y, boid.heading, Boid.SIZE)
 
     def update(self, dt: float):
         for i in range(self.count):
@@ -205,7 +203,8 @@ class Flock:
                     separate_from.append(other)
             separation = boid.separation(separate_from)
 
-            alignment.divs(8.)
+            # alignment.divs(8.)
+            alignment.divs(4.)
             cohesion.divs(16.)
             # separation.divs(1.)
 
@@ -214,13 +213,11 @@ class Flock:
             boid.acceleration.add(separation)
 
             # ****** Update Drawable Shape ******
-            shape = self.drawables[i]
+            shape = self.renderer[i]
 
             shape.x = boid.position.x
             shape.y = boid.position.y
             shape.angle = boid.heading
-            shape.update()
 
     def draw(self):
-        for drawable in self.drawables:
-            drawable.draw()
+        self.renderer.draw()
