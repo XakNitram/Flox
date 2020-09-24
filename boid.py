@@ -1,6 +1,9 @@
+from ctypes import sizeof as size_in_memory
 from math import cos, tau, sin
 from random import random
 from typing import List
+
+from pyglet.gl import GLfloat
 
 from drawables import BoidRenderer
 from vectors import Vec2
@@ -13,7 +16,7 @@ class Boid:
     MAX_SPEED = 100.
 
     ALIGN_RANGE = 70.
-    SEPARATE_RANGE = 20.
+    SEPARATE_RANGE = 25.
 
     __slots__ = "name", "position", "velocity", "acceleration"
 
@@ -124,22 +127,18 @@ class Boid:
 class Flock:
     def __init__(self, count: int, start: Vec2, bound_radius: float):
         self.bound = bound_radius
-
         self.count = count
-        self.data: List[Boid] = []
+        self.data: List[Boid] = [
+            Boid(name, 100.0 * cos(angle) + start.x, 100.0 * sin(angle) + start.y)
+
+            # pretty cool, these two will be evaluated as they're needed.
+            for name, angle in zip(range(count), (random() * tau for _ in range(count)))
+        ]
         self.distances = [([0.] * count) for _ in range(count)]
         self.renderer = BoidRenderer()
 
-        for name in range(count):
-            angle = random() * tau
-            x = 100. * cos(angle) + start.x
-            y = 100. * sin(angle) + start.y
-            boid = Boid(name, x, y)
-            self.data.append(boid)
-
-            self.renderer.attach_model(start.x, start.y, boid.heading, Boid.SIZE)
-
     def update(self, dt: float):
+        boid_data = (GLfloat * (3 * self.count))()
         for i in range(self.count):
             boid = self.data[i]
 
@@ -206,18 +205,19 @@ class Flock:
             # alignment.divs(8.)
             alignment.divs(4.)
             cohesion.divs(16.)
-            # separation.divs(1.)
+            separation.divs(2.)
 
             boid.acceleration.add(alignment)
             boid.acceleration.add(cohesion)
             boid.acceleration.add(separation)
 
             # ****** Update Drawable Shape ******
-            shape = self.renderer[i]
+            index = i * 3
+            boid_data[index + 0] = boid.position.x
+            boid_data[index + 1] = boid.position.y
+            boid_data[index + 2] = boid.heading
 
-            shape.x = boid.position.x
-            shape.y = boid.position.y
-            shape.angle = boid.heading
+        self.renderer.update(boid_data, size_in_memory(boid_data))
 
     def draw(self):
-        self.renderer.draw()
+        self.renderer.draw(self.count)
