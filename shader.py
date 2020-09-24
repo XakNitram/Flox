@@ -1,3 +1,10 @@
+import ctypes as c
+from dataclasses import dataclass
+from typing import Tuple, Dict, Iterator, ClassVar
+
+from pyglet.gl import *
+
+
 # language=GLSL
 vertex_source = b'''
 #version 330 core
@@ -23,15 +30,23 @@ void main() {
 '''
 
 
-import ctypes as c
-from dataclasses import dataclass
-from typing import Tuple, Dict, Iterator, ClassVar
+@dataclass
+class Location:
+    value: int
 
-from pyglet.gl import *
+    def __bool__(self):
+        return self.value != -1
+
+    def exists(self) -> bool:
+        return bool(self)
+
+    def __int__(self):
+        return self.value
 
 
 class Uniform:
     name: ClassVar[bytes]
+    uniform: Location
 
     __slots__ = "program", "uniform"
 
@@ -53,20 +68,6 @@ class World(Uniform):
                     0.,        0.,         0., 1.,
                 )
             )
-
-
-@dataclass
-class Location:
-    value: int
-
-    def __bool__(self):
-        return self.value != -1
-
-    def exists(self) -> bool:
-        return bool(self)
-
-    def __int__(self):
-        return self.value
 
 
 Mat4 = (GLfloat * 16)
